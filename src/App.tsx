@@ -21,20 +21,52 @@ import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
+import { useAuthStore } from "@/store/authStore";
 
 function AppLayout() {
   const location = useLocation();
-  const showFooter = location.pathname !== "/map";
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoginPage = location.pathname === "/login";
+  const showShell = isAuthenticated || !isLoginPage;
+  const showFooter = showShell && location.pathname !== "/map";
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
-      <Header />
+      {showShell ? <Header /> : null}
       <main className="flex-1 pb-24 lg:pb-0">
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/map" element={<MapExplore />} />
-          <Route path="/property/:id" element={<PropertyDetail />} />
+          <Route
+            path="/"
+            element={
+              <AuthGuard>
+                <Home />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <AuthGuard>
+                <Search />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/map"
+            element={
+              <AuthGuard>
+                <MapExplore />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/property/:id"
+            element={
+              <AuthGuard>
+                <PropertyDetail />
+              </AuthGuard>
+            }
+          />
           <Route
             path="/favorites"
             element={
@@ -59,24 +91,32 @@ function AppLayout() {
               </AuthGuard>
             }
           />
-          <Route path="/login" element={<Login />} />
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? <Navigate to="/" replace /> : <Login />
+            }
+          />
           <Route path="/404" element={<NotFound />} />
-          <Route path="*" element={<Navigate to="/404" replace />} />
+          <Route
+            path="*"
+            element={
+              <Navigate to={isAuthenticated ? "/404" : "/login"} replace />
+            }
+          />
         </Routes>
       </main>
       {showFooter ? <Footer /> : null}
-      <MobileNav />
-      <ChatWidget />
+      {showShell ? <MobileNav /> : null}
+      {showShell ? <ChatWidget /> : null}
       <Toaster richColors closeButton position="top-right" />
     </div>
   );
 }
 
 export default function App() {
-  const basename = import.meta.env.BASE_URL;
-
   return (
-    <BrowserRouter basename={basename}>
+    <BrowserRouter>
       <AppLayout />
     </BrowserRouter>
   );

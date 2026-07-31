@@ -45,7 +45,7 @@ export default function Login() {
       return;
     }
     toast.success("Logged in");
-    navigate(-1);
+    navigate("/");
   };
 
   const submitRegister = (values: RegisterValues) => {
