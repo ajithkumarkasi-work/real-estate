@@ -150,9 +150,18 @@ export default function PropertyDetail() {
     [property, properties],
   );
   const initialSchedule = useMemo(() => getEarliestDateTimeFromNow(), []);
-  const { register, handleSubmit, setValue, reset, watch } =
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    reset,
+    watch,
+    formState: { errors },
+  } =
     useForm<VisitFormValues>({
       resolver: zodResolver(visitSchema),
+      mode: "onChange",
+      reValidateMode: "onChange",
       defaultValues: {
         name: user?.name ?? "",
         email: user?.email ?? "",
@@ -165,6 +174,13 @@ export default function PropertyDetail() {
     initialSchedule.date,
   );
   const selectedTime = watch("time");
+  const getVisitInputClassName = (hasError: boolean) =>
+    `w-full rounded-2xl border bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 transition-colors dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+      hasError
+        ? "border-red-500 focus:border-red-500 dark:border-red-400 dark:focus:border-red-400"
+        : "border-slate-200 focus:border-brand dark:border-slate-700 dark:focus:border-brand"
+    }`;
+
   const existingVisit = useMemo(() => {
     if (!user) return undefined;
 
@@ -641,7 +657,7 @@ export default function PropertyDetail() {
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 md:grid-cols-[auto_1fr] md:items-start">
+                  <div className="grid gap-4">
                     <div className="min-w-0">
                       <div className="overflow-x-auto rounded-2xl border p-2 sm:p-3">
                         <DayPicker
@@ -668,7 +684,13 @@ export default function PropertyDetail() {
                       <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
                         Available Times
                       </p>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <div
+                        className={`grid grid-cols-2 gap-2 rounded-2xl p-1 sm:grid-cols-3 ${
+                          errors.time
+                            ? "border border-red-500/60"
+                            : "border border-transparent"
+                        }`}
+                      >
                         {TIME_SLOTS.map((time) => {
                           const disabled = isPastTimeForSelectedDate(time);
                           return (
@@ -689,6 +711,11 @@ export default function PropertyDetail() {
                           );
                         })}
                       </div>
+                      {errors.time ? (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                          {errors.time.message}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <form
@@ -698,24 +725,48 @@ export default function PropertyDetail() {
                     <input
                       {...register("name")}
                       placeholder="Name"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      aria-invalid={Boolean(errors.name)}
+                      className={getVisitInputClassName(Boolean(errors.name))}
                     />
+                    {errors.name ? (
+                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
+                        {errors.name.message}
+                      </p>
+                    ) : null}
                     <input
                       {...register("email")}
                       placeholder="Email"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      aria-invalid={Boolean(errors.email)}
+                      className={getVisitInputClassName(Boolean(errors.email))}
                     />
+                    {errors.email ? (
+                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
+                        {errors.email.message}
+                      </p>
+                    ) : null}
                     <input
                       {...register("phone")}
                       placeholder="Phone"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      aria-invalid={Boolean(errors.phone)}
+                      className={getVisitInputClassName(Boolean(errors.phone))}
                     />
+                    {errors.phone ? (
+                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
+                        {errors.phone.message}
+                      </p>
+                    ) : null}
                     <textarea
                       {...register("message")}
                       placeholder="Message"
                       rows={3}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      aria-invalid={Boolean(errors.message)}
+                      className={getVisitInputClassName(Boolean(errors.message))}
                     />
+                    {errors.message ? (
+                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
+                        {errors.message.message}
+                      </p>
+                    ) : null}
                     <button
                       type="submit"
                       className="w-full rounded-full bg-brand px-4 py-3 font-semibold text-white"

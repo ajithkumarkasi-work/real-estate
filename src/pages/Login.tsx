@@ -33,10 +33,21 @@ export default function Login() {
   const login = useAuthStore((state) => state.login);
   const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
   });
   const registerForm = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
   });
+
+  const getInputClassName = (hasError: boolean) =>
+    `w-full rounded-2xl border bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 transition-colors dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+      hasError
+        ? "border-red-500 focus:border-red-500 dark:border-red-400 dark:focus:border-red-400"
+        : "border-slate-200 focus:border-brand dark:border-slate-700 dark:focus:border-brand"
+    }`;
 
   const submitLogin = (values: LoginValues) => {
     const success = login(values.email, values.password);
@@ -93,8 +104,16 @@ export default function Login() {
               </label>
               <input
                 {...loginForm.register("email")}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                aria-invalid={Boolean(loginForm.formState.errors.email)}
+                className={getInputClassName(
+                  Boolean(loginForm.formState.errors.email),
+                )}
               />
+              {loginForm.formState.errors.email ? (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {loginForm.formState.errors.email.message}
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="mb-1 block text-sm text-slate-700 dark:text-slate-200">
@@ -103,8 +122,16 @@ export default function Login() {
               <input
                 type="password"
                 {...loginForm.register("password")}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                aria-invalid={Boolean(loginForm.formState.errors.password)}
+                className={getInputClassName(
+                  Boolean(loginForm.formState.errors.password),
+                )}
               />
+              {loginForm.formState.errors.password ? (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {loginForm.formState.errors.password.message}
+                </p>
+              ) : null}
             </div>
             <button
               className="w-full rounded-full bg-brand px-4 py-3 font-semibold text-white"
@@ -129,8 +156,16 @@ export default function Login() {
               </label>
               <input
                 {...registerForm.register("name")}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                aria-invalid={Boolean(registerForm.formState.errors.name)}
+                className={getInputClassName(
+                  Boolean(registerForm.formState.errors.name),
+                )}
               />
+              {registerForm.formState.errors.name ? (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {registerForm.formState.errors.name.message}
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="mb-1 block text-sm text-slate-700 dark:text-slate-200">
@@ -138,8 +173,16 @@ export default function Login() {
               </label>
               <input
                 {...registerForm.register("email")}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                aria-invalid={Boolean(registerForm.formState.errors.email)}
+                className={getInputClassName(
+                  Boolean(registerForm.formState.errors.email),
+                )}
               />
+              {registerForm.formState.errors.email ? (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {registerForm.formState.errors.email.message}
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="mb-1 block text-sm text-slate-700 dark:text-slate-200">
@@ -148,8 +191,16 @@ export default function Login() {
               <input
                 type="password"
                 {...registerForm.register("password")}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                aria-invalid={Boolean(registerForm.formState.errors.password)}
+                className={getInputClassName(
+                  Boolean(registerForm.formState.errors.password),
+                )}
               />
+              {registerForm.formState.errors.password ? (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {registerForm.formState.errors.password.message}
+                </p>
+              ) : null}
             </div>
             <div>
               <label className="mb-1 block text-sm text-slate-700 dark:text-slate-200">
@@ -158,8 +209,18 @@ export default function Login() {
               <input
                 type="password"
                 {...registerForm.register("confirmPassword")}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+                aria-invalid={Boolean(
+                  registerForm.formState.errors.confirmPassword,
+                )}
+                className={getInputClassName(
+                  Boolean(registerForm.formState.errors.confirmPassword),
+                )}
               />
+              {registerForm.formState.errors.confirmPassword ? (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {registerForm.formState.errors.confirmPassword.message}
+                </p>
+              ) : null}
             </div>
             <button
               className="w-full rounded-full bg-brand px-4 py-3 font-semibold text-white"
