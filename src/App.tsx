@@ -73,8 +73,10 @@ function AppLayout() {
 }
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL;
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <AppLayout />
     </BrowserRouter>
   );
