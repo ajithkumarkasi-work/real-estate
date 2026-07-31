@@ -11,11 +11,11 @@ export default function Footer() {
               <House className="h-5 w-5" />
             </span>
             <span className="text-xl font-bold text-white">
-              Estate AI Homes
+              Estate Homes
             </span>
           </div>
           <p className="text-sm text-slate-400">
-            A premium AI-powered platform for discovering, comparing, and saving
+            A premium platform for discovering, comparing, and saving
             homes with confidence.
           </p>
         </div>
@@ -45,14 +45,14 @@ export default function Footer() {
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white">
             Contact
           </h3>
-          <p className="text-sm text-slate-400">hello@estateai.com</p>
+          <p className="text-sm text-slate-400">hello@estatehomes.com</p>
           <p className="text-sm text-slate-400">+1 (800) 555-0199</p>
         </div>
       </div>
       <div className="border-t border-white/10 px-4 py-5 lg:px-6">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
           <p>
-            © {new Date().getFullYear()} Estate AI Homes. All rights reserved.
+            © {new Date().getFullYear()} Estate Homes. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <Twitter className="h-4 w-4" />

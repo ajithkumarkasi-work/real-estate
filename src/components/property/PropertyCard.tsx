@@ -1,6 +1,6 @@
 import { Bath, BedDouble, Heart, MapPin, Maximize2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 import { useAuthStore } from "@/store/authStore";
@@ -27,7 +27,8 @@ export default function PropertyCard({
   visitScheduled = false,
 }: PropertyCardProps) {
   const { isAuthenticated } = useAuthStore();
-  const { ids, toggle, isFavorite } = useFavoritesStore();
+  const location = useLocation();
+  const { toggle, isFavorite } = useFavoritesStore();
   const favorite = isFavorite(property.id);
 
   return (
@@ -42,6 +43,7 @@ export default function PropertyCard({
     >
       <Link
         to={`/property/${property.id}`}
+        state={{ backgroundLocation: location }}
         className={cn(
           viewMode === "list" ? "block md:flex md:h-full" : "block",
         )}

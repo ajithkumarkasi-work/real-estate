@@ -1,10 +1,12 @@
 import {
   BrowserRouter,
+  type Location,
   Navigate,
   Route,
   Routes,
   useLocation,
 } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster } from "sonner";
 
 import ChatWidget from "@/components/chat/ChatWidget";
@@ -25,16 +27,29 @@ import { useAuthStore } from "@/store/authStore";
 
 function AppLayout() {
   const location = useLocation();
+  const state = location.state as
+    | { backgroundLocation?: Location; promotedFromModal?: boolean }
+    | undefined;
+  const backgroundLocation = state?.backgroundLocation;
+  const promotedFromModal = Boolean(state?.promotedFromModal);
+  const layoutLocation = backgroundLocation ?? location;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const isLoginPage = location.pathname === "/login";
+  const isLoginPage = layoutLocation.pathname === "/login";
   const showShell = isAuthenticated || !isLoginPage;
-  const showFooter = showShell && location.pathname !== "/map";
+  const showFooter = showShell && layoutLocation.pathname !== "/map";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth > 1024) return;
+    if (promotedFromModal) return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [layoutLocation.pathname, layoutLocation.search, promotedFromModal]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
       {showShell ? <Header /> : null}
-      <main className="flex-1 pb-24 lg:pb-0">
-        <Routes>
+      <main className="relative flex-1 pb-24 lg:pb-0">
+        <Routes location={layoutLocation}>
           <Route
             path="/"
             element={
@@ -93,9 +108,7 @@ function AppLayout() {
           />
           <Route
             path="/login"
-            element={
-              isAuthenticated ? <Navigate to="/" replace /> : <Login />
-            }
+            element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
           />
           <Route path="/404" element={<NotFound />} />
           <Route
@@ -105,6 +118,18 @@ function AppLayout() {
             }
           />
         </Routes>
+        {backgroundLocation ? (
+          <Routes>
+            <Route
+              path="/property/:id"
+              element={
+                <AuthGuard>
+                  <PropertyDetail isModal />
+                </AuthGuard>
+              }
+            />
+          </Routes>
+        ) : null}
       </main>
       {showFooter ? <Footer /> : null}
       {showShell ? <MobileNav /> : null}

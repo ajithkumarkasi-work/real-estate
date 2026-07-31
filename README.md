@@ -1,6 +1,6 @@
-# Estate AI Homes
+# Estate Homes
 
-AI Real Estate Platform built with React, Vite, TypeScript, Tailwind CSS, Zustand, React Router, Mapbox, and OpenAI.
+Real estate platform built with React, Vite, TypeScript, Tailwind CSS, Zustand, React Router, Mapbox, and a built-in chatbot assistant.
 
 ## Development
 

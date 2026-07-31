@@ -113,14 +113,14 @@ export default function Home() {
             className="max-w-3xl"
           >
             <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm backdrop-blur">
-              <Sparkles className="h-4 w-4" /> AI-powered real estate discovery
+              <Sparkles className="h-4 w-4" /> Smart real estate discovery
             </p>
             <h1 className="mt-6 text-5xl font-black tracking-tight md:text-7xl">
               Find Your Dream Home
             </h1>
             <p className="mt-5 max-w-2xl text-lg text-slate-200 md:text-xl">
               Search premium rentals and homes across six major cities with
-              smart filters, map exploration, and an AI assistant that
+              smart filters, map exploration, and a property assistant that
               understands what you need.
             </p>
 
@@ -250,7 +250,7 @@ export default function Home() {
           {
             title: "Search",
             description:
-              "Use smart filters or ask the AI assistant to narrow options fast.",
+              "Use smart filters or ask the property assistant to narrow options fast.",
             icon: Search,
           },
           {
@@ -307,7 +307,7 @@ export default function Home() {
                 Ready to find your perfect home?
               </h2>
               <p className="mt-2 text-white/80">
-                Start searching or ask the AI assistant for tailored property
+                Start searching or ask the property assistant for tailored property
                 recommendations.
               </p>
             </div>

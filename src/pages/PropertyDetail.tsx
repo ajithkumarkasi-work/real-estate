@@ -2,6 +2,8 @@ import {
   ArrowLeft,
   Bath,
   BedDouble,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Heart,
   Home as HomeIcon,
@@ -9,10 +11,16 @@ import {
   SquareStack,
   Tag,
   Trash2,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { DayPicker } from "react-day-picker";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -39,6 +47,10 @@ const TIME_SLOTS = [
   "4:00 PM",
   "5:00 PM",
 ];
+
+function sanitizePhone(value: string): string {
+  return value.replace(/\D/g, "");
+}
 
 function toSlotDate(baseDate: Date, slot: string): Date | null {
   const match = slot.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -96,15 +108,29 @@ function getEarliestDateTimeFromNow(): { date: Date; time: string } {
 const visitSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  phone: z.string().min(6),
+  phone: z.string().regex(/^\d{6,15}$/, "Enter a valid phone number"),
   message: z.string().min(5),
   time: z.string().min(1),
 });
 
 type VisitFormValues = z.infer<typeof visitSchema>;
+const MODAL_PROMOTE_SCROLL = 200;
 
-export default function PropertyDetail() {
+interface PropertyDetailProps {
+  isModal?: boolean;
+}
+
+export default function PropertyDetail({
+  isModal = false,
+}: PropertyDetailProps) {
   const { id } = useParams();
+  const location = useLocation();
+  const locationState = location.state as
+    | {
+        promotedFromModal?: boolean;
+        promotedScrollTop?: number;
+      }
+    | undefined;
   const navigate = useNavigate();
   const { getById, updateProperty, properties } = usePropertyStore();
   const {
@@ -125,10 +151,42 @@ export default function PropertyDetail() {
   const [emiTenureYears, setEmiTenureYears] = useState(20);
   const [isEditingVisit, setIsEditingVisit] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [modalScrollProgress, setModalScrollProgress] = useState(0);
+  const promotedToPageRef = useRef(false);
+  const restoredPromotedScrollRef = useRef(false);
 
   useEffect(() => {
+    if (!isModal) {
+      setModalScrollProgress(0);
+      return;
+    }
+
+    setModalScrollProgress(0);
+  }, [isModal, id]);
+
+  useEffect(() => {
+    if (locationState?.promotedFromModal) return;
     window.scrollTo({ top: 0, behavior: "auto" });
-  }, []);
+  }, [locationState?.promotedFromModal]);
+
+  useEffect(() => {
+    if (isModal) return;
+    if (!locationState?.promotedFromModal) return;
+    if (restoredPromotedScrollRef.current) return;
+
+    restoredPromotedScrollRef.current = true;
+    const promotedScrollTop = Math.max(
+      0,
+      Math.round(locationState.promotedScrollTop ?? 0),
+    );
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: promotedScrollTop, behavior: "auto" });
+    });
+  }, [
+    isModal,
+    locationState?.promotedFromModal,
+    locationState?.promotedScrollTop,
+  ]);
 
   useEffect(() => {
     if (!property) return;
@@ -157,19 +215,18 @@ export default function PropertyDetail() {
     reset,
     watch,
     formState: { errors },
-  } =
-    useForm<VisitFormValues>({
-      resolver: zodResolver(visitSchema),
-      mode: "onChange",
-      reValidateMode: "onChange",
-      defaultValues: {
-        name: user?.name ?? "",
-        email: user?.email ?? "",
-        phone: "",
-        message: "",
-        time: initialSchedule.time,
-      },
-    });
+  } = useForm<VisitFormValues>({
+    resolver: zodResolver(visitSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
+    defaultValues: {
+      name: user?.name ?? "",
+      email: user?.email ?? "",
+      phone: "",
+      message: "",
+      time: initialSchedule.time,
+    },
+  });
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     initialSchedule.date,
   );
@@ -209,7 +266,7 @@ export default function PropertyDetail() {
     reset({
       name: existingVisit.name,
       email: existingVisit.email,
-      phone: existingVisit.phone,
+      phone: sanitizePhone(existingVisit.phone),
       message: existingVisit.message,
       time: existingVisit.time,
     });
@@ -305,6 +362,19 @@ export default function PropertyDetail() {
     navigate("/");
   };
 
+  useEffect(() => {
+    if (!isModal) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        goBack();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isModal]);
+
   const submitVisit = (values: VisitFormValues) => {
     if (!isAuthenticated) {
       toast.error("Please login to schedule a visit");
@@ -330,7 +400,7 @@ export default function PropertyDetail() {
       time: values.time,
       name: values.name,
       email: values.email,
-      phone: values.phone,
+      phone: sanitizePhone(values.phone),
       message: values.message,
       createdAt: existingVisit?.createdAt ?? new Date().toISOString(),
     });
@@ -379,500 +449,722 @@ export default function PropertyDetail() {
     });
   };
 
+  const currentPropertyIndex = properties.findIndex(
+    (candidate) => candidate.id === property.id,
+  );
+  const previousProperty =
+    currentPropertyIndex > 0 ? properties[currentPropertyIndex - 1] : null;
+  const nextProperty =
+    currentPropertyIndex >= 0 && currentPropertyIndex < properties.length - 1
+      ? properties[currentPropertyIndex + 1]
+      : null;
+
+  const navigateToProperty = (
+    targetId: string | null,
+    _direction: "next" | "prev",
+  ) => {
+    if (!targetId) return;
+
+    if (!isModal) {
+      navigate(`/property/${targetId}`);
+      return;
+    }
+
+    navigate(`/property/${targetId}`, {
+      state: isModal ? location.state : undefined,
+      replace: isModal,
+    });
+  };
+
+  const promoteToPage = (scrollTop: number) => {
+    if (!isModal || promotedToPageRef.current || !property) return;
+
+    promotedToPageRef.current = true;
+    navigate(`/property/${property.id}`, {
+      replace: true,
+      state: {
+        promotedFromModal: true,
+        promotedScrollTop: scrollTop,
+      },
+    });
+  };
+
+  const handleModalContentScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    if (!isModal || promotedToPageRef.current) return;
+
+    const target = event.currentTarget;
+    const progress = Math.min(
+      1,
+      Math.max(0, target.scrollTop / MODAL_PROMOTE_SCROLL),
+    );
+    setModalScrollProgress(progress);
+
+    if (target.scrollTop > MODAL_PROMOTE_SCROLL) {
+      promoteToPage(target.scrollTop);
+    }
+  };
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6">
-      <div className="space-y-6">
-        <div className="flex  justify-between gap-3 items-center">
-          <div className="min-w-0 text-sm text-slate-500">
-            <p className="truncate">
-              Home &gt; {property.city} &gt; {property.type} &gt;{" "}
-              {property.title}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={goBack}
-            aria-label="Go back"
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-brand bg-brand px-3 text-sm font-semibold text-white hover:bg-blue-700 sm:px-4"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
-        </div>
-        <PropertyGallery images={property.images} title={property.title} />
-
-        <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-          <main className="space-y-4">
-            <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-bold">{property.title}</h1>
-                    <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand capitalize">
-                      {property.status.replace("-", " ")}
-                    </span>
-                  </div>
-                  <p className="mt-2 flex items-center gap-2 text-slate-500">
-                    <MapPin className="h-4 w-4" />
-                    {property.address}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() =>
-                      navigator.clipboard
-                        .writeText(window.location.href)
-                        .then(() => toast.success("Link copied"))
-                    }
-                    className="rounded-full border p-3"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => toggle(property.id)}
-                    className="rounded-full border p-3"
-                  >
-                    <Heart
-                      className={
-                        isFavorite(property.id)
-                          ? "h-4 w-4 fill-red-500 text-red-500"
-                          : "h-4 w-4"
-                      }
-                    />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-6 text-4xl font-black text-brand">
-                {formatPriceWithUnitINR(property.price, property.priceUnit)}
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                {[
-                  [BedDouble, `${property.bedrooms} Bedrooms`],
-                  [Bath, `${property.bathrooms} Bathrooms`],
-                  [SquareStack, `${property.area} sqft`],
-                  [Tag, `${property.yearBuilt}`],
-                  [HomeIcon, property.type],
-                ].map(([Icon, label]) => (
-                  <div
-                    key={String(label)}
-                    className="rounded-2xl border p-3 sm:p-4"
-                  >
-                    <Icon className="h-5 w-5 text-brand" />
-                    <p className="mt-2 text-sm text-slate-500">
-                      {label as string}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6">
-                <p className="break-words text-slate-600 dark:text-slate-300">
-                  {description}
+    <div
+      className={
+        isModal
+          ? "absolute inset-0 z-40 overflow-y-auto px-3 py-4 sm:px-4 sm:py-6"
+          : "min-h-[calc(100vh-4rem)] bg-slate-900/30 px-0 py-0 dark:bg-black/40 sm:px-4 sm:py-4"
+      }
+      style={
+        isModal
+          ? {
+              backgroundColor: `rgba(0, 0, 0, ${0.5 - modalScrollProgress * 0.28})`,
+              backdropFilter: `blur(${10 - modalScrollProgress * 6}px)`,
+            }
+          : undefined
+      }
+      onClick={isModal ? goBack : undefined}
+    >
+      <div
+        className={
+          isModal
+            ? "mx-auto w-full max-w-7xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950"
+            : "mx-auto min-h-[calc(100vh-4rem)] max-w-7xl rounded-none border-x border-slate-200/70 bg-slate-50 shadow-2xl dark:border-slate-800/80 dark:bg-slate-950 sm:min-h-[calc(100vh-5rem)] sm:rounded-3xl sm:border"
+        }
+        style={
+          isModal
+            ? {
+                opacity: 1 - modalScrollProgress * 0.18,
+                transform: `translateY(${modalScrollProgress * 10}px) scale(${1 - modalScrollProgress * 0.015})`,
+              }
+            : undefined
+        }
+        onClick={isModal ? (event) => event.stopPropagation() : undefined}
+      >
+        <div
+          className={`space-y-6 px-4 py-6 lg:px-6 ${
+            isModal ? "max-h-[calc(100vh-8rem)] overflow-y-auto" : ""
+          }`}
+          onScroll={isModal ? handleModalContentScroll : undefined}
+        >
+          {!isModal ? (
+            <div className="flex justify-between gap-3 items-center">
+              <div className="min-w-0 text-sm text-slate-500">
+                <p className="truncate">
+                  Home &gt; {property.city} &gt; {property.type} &gt;{" "}
+                  {property.title}
                 </p>
-                {property.description.length > 200 ? (
-                  <button
-                    onClick={() => setExpanded((value) => !value)}
-                    className="mt-2 text-sm font-semibold text-brand"
-                  >
-                    {expanded ? "Show less" : "Show more"}
-                  </button>
-                ) : null}
-              </div>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {property.amenities.map((amenity) => (
-                  <span
-                    key={amenity}
-                    className="rounded-full border px-3 py-1 text-sm capitalize"
-                  >
-                    {amenity}
-                  </span>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
-              <h2 className="mb-4 text-2xl font-bold">Location</h2>
-              <div className="mb-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border p-3 sm:p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Full Address
-                  </p>
-                  <p className="mt-1 flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                    <span>{property.address}</span>
-                  </p>
-                </div>
-                <div className="rounded-2xl border p-3 sm:p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Area Details
-                  </p>
-                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
-                    {property.neighborhood}, {property.city}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Lat: {property.coordinates.lat}, Lng:{" "}
-                    {property.coordinates.lng}
-                  </p>
-                </div>
               </div>
               <button
                 type="button"
-                onClick={openFocusedMap}
-                className="group w-full overflow-hidden rounded-2xl border text-left"
+                onClick={goBack}
+                aria-label="Go back"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-brand bg-brand px-3 text-sm font-semibold text-white hover:bg-blue-700 sm:px-4"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+            </div>
+          ) : null}
+          <div className="relative lg:px-14">
+            {isModal && previousProperty ? (
+              <button
+                type="button"
+                onClick={() => navigateToProperty(previousProperty.id, "prev")}
+                className="absolute left-0 top-1/2 z-0 hidden w-36 -translate-x-1/3 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/40 bg-black/40 text-left text-white shadow-xl backdrop-blur md:block"
               >
                 <img
-                  src={locationThumbnailUrl}
-                  alt={`Map preview of ${property.neighborhood}, ${property.city}`}
-                  className="h-56 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                  loading="lazy"
-                  onError={(event) => {
-                    event.currentTarget.onerror = null;
-                    event.currentTarget.src = property.images[0];
-                  }}
+                  src={previousProperty.images[0]}
+                  alt={previousProperty.title}
+                  className="h-20 w-full object-cover opacity-85"
                 />
-                <div className="flex items-center justify-between bg-white px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                  <span>Open this property on map</span>
-                  <span className="rounded-full border border-brand px-3 py-1 text-xs font-semibold text-brand">
-                    View
-                  </span>
+                <div className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold">
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span className="truncate">{previousProperty.title}</span>
                 </div>
               </button>
-            </section>
+            ) : null}
 
-            <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
-              <h2 className="mb-4 text-2xl font-bold">Price History</h2>
-              <div className="space-y-3">
-                {priceHistory.map((point) => (
-                  <div key={point.label} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500">{point.label}</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">
-                        {formatINR(point.value)}
+            {isModal && nextProperty ? (
+              <button
+                type="button"
+                onClick={() => navigateToProperty(nextProperty.id, "next")}
+                className="absolute right-0 top-1/2 z-0 hidden w-36 translate-x-1/3 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/40 bg-black/40 text-right text-white shadow-xl backdrop-blur md:block"
+              >
+                <img
+                  src={nextProperty.images[0]}
+                  alt={nextProperty.title}
+                  className="h-20 w-full object-cover opacity-85"
+                />
+                <div className="flex items-center justify-end gap-1 px-2 py-1.5 text-xs font-semibold">
+                  <span className="truncate">{nextProperty.title}</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </div>
+              </button>
+            ) : null}
+
+            <div className="relative z-10">
+              <PropertyGallery
+                images={property.images}
+                title={property.title}
+              />
+              {isModal ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    aria-label="Close property details"
+                    className="absolute right-2 top-2 z-30 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/45 bg-black/45 text-white shadow-lg backdrop-blur transition hover:bg-black/65 sm:right-3 sm:top-3"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigateToProperty(previousProperty?.id ?? null, "prev")
+                    }
+                    disabled={!previousProperty}
+                    aria-label="Previous property"
+                    className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/50 bg-black/45 p-2 text-white shadow-lg backdrop-blur transition hover:bg-black/65 disabled:cursor-not-allowed disabled:opacity-40 sm:left-4 sm:p-2.5"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigateToProperty(nextProperty?.id ?? null, "next")
+                    }
+                    disabled={!nextProperty}
+                    aria-label="Next property"
+                    className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/50 bg-black/45 p-2 text-white shadow-lg backdrop-blur transition hover:bg-black/65 disabled:cursor-not-allowed disabled:opacity-40 sm:right-4 sm:p-2.5"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
+            <main className="space-y-4">
+              <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h1 className="text-2xl font-bold sm:text-3xl">
+                        {property.title}
+                      </h1>
+                      <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand capitalize">
+                        {property.status.replace("-", " ")}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-brand"
-                        style={{
-                          width: `${Math.max(40, (point.value / property.price) * 100)}%`,
-                        }}
+                    <p className="mt-2 flex items-center gap-2 text-slate-500">
+                      <MapPin className="h-4 w-4" />
+                      {property.address}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        navigator.clipboard
+                          .writeText(window.location.href)
+                          .then(() => toast.success("Link copied"))
+                      }
+                      className="rounded-full border p-3"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => toggle(property.id)}
+                      className="rounded-full border p-3"
+                    >
+                      <Heart
+                        className={
+                          isFavorite(property.id)
+                            ? "h-4 w-4 fill-red-500 text-red-500"
+                            : "h-4 w-4"
+                        }
                       />
-                    </div>
+                    </button>
                   </div>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <h2 className="mb-4 text-2xl font-bold">Similar Properties</h2>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {similar.map((item) => (
-                  <PropertyCard
-                    key={item.id}
-                    property={item}
-                    visitScheduled={Boolean(
-                      user?.visitRequests.some(
-                        (visit) => visit.propertyId === item.id,
-                      ),
-                    )}
-                  />
-                ))}
-              </div>
-            </section>
-          </main>
-
-          <aside className="space-y-6">
-            <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
-              <div className="flex items-center gap-4">
-                <img
-                  src={agent?.photo ?? property.images[0]}
-                  alt={agent?.name ?? "Agent"}
-                  className="h-16 w-16 rounded-2xl object-cover"
-                />
-                <div>
-                  <h3 className="text-xl font-semibold">
-                    {agent?.name ?? "EstateAI Agent"}
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    {agent?.title ?? "Property Specialist"}
-                  </p>
                 </div>
-              </div>
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
-                {agent?.bio ??
-                  "Reach out for more information, tours, or neighborhood details."}
-              </p>
-              <div className="mt-4 flex gap-2">
-                <a
-                  href={`tel:${agent?.phone ?? ""}`}
-                  className="flex-1 rounded-full border border-brand bg-brand px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  Call
-                </a>
-                <a
-                  href={`mailto:${agent?.email ?? ""}`}
-                  className="flex-1 rounded-full border border-brand bg-brand px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  Email
-                </a>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
-              <h3 className="mb-4 text-xl font-semibold">Schedule Visit</h3>
-              {existingVisit && !isEditingVisit ? (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/25 sm:p-4">
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                      You scheduled a visit on
-                    </p>
-                    <p className="mt-1 text-base font-semibold text-emerald-800 dark:text-emerald-200">
-                      {format(new Date(existingVisit.date), "EEE, MMM d, yyyy")}{" "}
-                      at {existingVisit.time}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                      {existingVisit.name} • {existingVisit.phone}
-                    </p>
-                    {existingVisit.message ? (
-                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                        {existingVisit.message}
+                <div className="mt-6 text-3xl font-black text-brand sm:text-4xl">
+                  {formatPriceWithUnitINR(property.price, property.priceUnit)}
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  {[
+                    [BedDouble, `${property.bedrooms} Bedrooms`],
+                    [Bath, `${property.bathrooms} Bathrooms`],
+                    [SquareStack, `${property.area} sqft`],
+                    [Tag, `${property.yearBuilt}`],
+                    [HomeIcon, property.type],
+                  ].map(([Icon, label]) => (
+                    <div
+                      key={String(label)}
+                      className="rounded-2xl border p-3 sm:p-4"
+                    >
+                      <Icon className="h-5 w-5 text-brand" />
+                      <p className="mt-2 text-sm text-slate-500">
+                        {label as string}
                       </p>
-                    ) : null}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6">
+                  <p className="break-words text-slate-600 dark:text-slate-300">
+                    {description}
+                  </p>
+                  {property.description.length > 200 ? (
+                    <button
+                      onClick={() => setExpanded((value) => !value)}
+                      className="mt-2 text-sm font-semibold text-brand"
+                    >
+                      {expanded ? "Show less" : "Show more"}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {property.amenities.map((amenity) => (
+                    <span
+                      key={amenity}
+                      className="rounded-full border px-3 py-1 text-sm capitalize"
+                    >
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
+                <h2 className="mb-4 text-xl font-bold sm:text-2xl">Location</h2>
+                <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border p-3 sm:p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Full Address
+                    </p>
+                    <p className="mt-1 flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+                      <span>{property.address}</span>
+                    </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingVisit(true)}
-                      className="rounded-full border border-brand bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                    >
-                      Change Visit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteOpen(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
-                    >
-                      <Trash2 className="h-4 w-4" /> Delete Visit
-                    </button>
+                  <div className="rounded-2xl border p-3 sm:p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Area Details
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                      {property.neighborhood}, {property.city}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Lat: {property.coordinates.lat}, Lng:{" "}
+                      {property.coordinates.lng}
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="grid gap-4">
-                    <div className="min-w-0">
-                      <div className="overflow-x-auto rounded-2xl border p-2 sm:p-3">
-                        <DayPicker
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={handleDateSelect}
-                          disabled={{
-                            before: new Date(new Date().setHours(0, 0, 0, 0)),
+                <button
+                  type="button"
+                  onClick={openFocusedMap}
+                  className="group w-full overflow-hidden rounded-2xl border text-left"
+                >
+                  <img
+                    src={locationThumbnailUrl}
+                    alt={`Map preview of ${property.neighborhood}, ${property.city}`}
+                    className="h-56 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                    loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = property.images[0];
+                    }}
+                  />
+                  <div className="flex items-center justify-between bg-white px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <span>Open this property on map</span>
+                    <span className="rounded-full border border-brand px-3 py-1 text-xs font-semibold text-brand">
+                      View
+                    </span>
+                  </div>
+                </button>
+              </section>
+
+              <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
+                <h2 className="mb-4 text-xl font-bold sm:text-2xl">
+                  Price History
+                </h2>
+                <div className="space-y-3">
+                  {priceHistory.map((point) => (
+                    <div key={point.label} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">{point.label}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          {formatINR(point.value)}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-brand"
+                          style={{
+                            width: `${Math.max(40, (point.value / property.price) * 100)}%`,
                           }}
-                          className="w-full"
                         />
                       </div>
-                      <p className="mt-3 text-sm text-slate-500">
-                        Selected date:{" "}
-                        <span className="font-medium text-slate-700 dark:text-slate-200">
-                          {selectedDate
-                            ? format(selectedDate, "EEE, MMM d, yyyy")
-                            : "None"}
-                        </span>
-                      </p>
                     </div>
-
-                    <div className="min-w-0">
-                      <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-                        Available Times
-                      </p>
-                      <div
-                        className={`grid grid-cols-2 gap-2 rounded-2xl p-1 sm:grid-cols-3 ${
-                          errors.time
-                            ? "border border-red-500/60"
-                            : "border border-transparent"
-                        }`}
-                      >
-                        {TIME_SLOTS.map((time) => {
-                          const disabled = isPastTimeForSelectedDate(time);
-                          return (
-                            <button
-                              key={time}
-                              type="button"
-                              disabled={disabled}
-                              onClick={() =>
-                                setValue("time", time, {
-                                  shouldValidate: true,
-                                  shouldDirty: true,
-                                })
-                              }
-                              className={`rounded-2xl border px-2.5 py-2 text-xs transition sm:px-3 sm:text-sm ${selectedTime === time ? "border-brand bg-brand/10 text-brand" : "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"} ${disabled ? "cursor-not-allowed opacity-45 hover:bg-transparent dark:hover:bg-transparent" : ""}`}
-                            >
-                              {time}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {errors.time ? (
-                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                          {errors.time.message}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <form
-                    onSubmit={handleSubmit(submitVisit)}
-                    className="mt-4 space-y-3"
-                  >
-                    <input
-                      {...register("name")}
-                      placeholder="Name"
-                      aria-invalid={Boolean(errors.name)}
-                      className={getVisitInputClassName(Boolean(errors.name))}
-                    />
-                    {errors.name ? (
-                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
-                        {errors.name.message}
-                      </p>
-                    ) : null}
-                    <input
-                      {...register("email")}
-                      placeholder="Email"
-                      aria-invalid={Boolean(errors.email)}
-                      className={getVisitInputClassName(Boolean(errors.email))}
-                    />
-                    {errors.email ? (
-                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
-                        {errors.email.message}
-                      </p>
-                    ) : null}
-                    <input
-                      {...register("phone")}
-                      placeholder="Phone"
-                      aria-invalid={Boolean(errors.phone)}
-                      className={getVisitInputClassName(Boolean(errors.phone))}
-                    />
-                    {errors.phone ? (
-                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
-                        {errors.phone.message}
-                      </p>
-                    ) : null}
-                    <textarea
-                      {...register("message")}
-                      placeholder="Message"
-                      rows={3}
-                      aria-invalid={Boolean(errors.message)}
-                      className={getVisitInputClassName(Boolean(errors.message))}
-                    />
-                    {errors.message ? (
-                      <p className="-mt-1 text-xs text-red-600 dark:text-red-400">
-                        {errors.message.message}
-                      </p>
-                    ) : null}
-                    <button
-                      type="submit"
-                      className="w-full rounded-full bg-brand px-4 py-3 font-semibold text-white"
-                    >
-                      {existingVisit ? "Update Visit" : "Book Visit"}
-                    </button>
-                    {existingVisit ? (
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingVisit(false)}
-                        className="w-full rounded-full border px-4 py-3 text-sm font-medium"
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </form>
-                </>
-              )}
-
-              <ConfirmModal
-                open={confirmDeleteOpen}
-                title="Cancel Scheduled Visit"
-                message="Are you sure you want to cancel this scheduled visit?"
-                confirmText="Cancel Visit"
-                intent="danger"
-                onCancel={() => setConfirmDeleteOpen(false)}
-                onConfirm={() => {
-                  if (!existingVisit) {
-                    setConfirmDeleteOpen(false);
-                    return;
-                  }
-                  removeVisitRequest(existingVisit.id);
-                  toast.success("Scheduled visit deleted");
-                  setIsEditingVisit(false);
-                  const fallback = getEarliestDateTimeFromNow();
-                  setSelectedDate(fallback.date);
-                  setValue("time", fallback.time, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                  setConfirmDeleteOpen(false);
-                }}
-              />
-            </section>
-
-            <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
-              <h3 className="mb-4 text-xl font-semibold">EMI Calculator</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
-                    Loan Amount
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={emiLoanAmount}
-                    onChange={(event) =>
-                      setEmiLoanAmount(Number(event.target.value) || 0)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                  />
+                  ))}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+              </section>
+
+              <section>
+                <h2 className="mb-4 text-xl font-bold sm:text-2xl">
+                  Similar Properties
+                </h2>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {similar.map((item) => (
+                    <PropertyCard
+                      key={item.id}
+                      property={item}
+                      visitScheduled={Boolean(
+                        user?.visitRequests.some(
+                          (visit) => visit.propertyId === item.id,
+                        ),
+                      )}
+                    />
+                  ))}
+                </div>
+              </section>
+            </main>
+
+            <aside className="space-y-6">
+              <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={agent?.photo ?? property.images[0]}
+                    alt={agent?.name ?? "Agent"}
+                    className="h-16 w-16 rounded-2xl object-cover"
+                  />
+                  <div>
+                    <h3 className="text-lg font-semibold sm:text-xl">
+                      {agent?.name ?? "EstateAI Agent"}
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      {agent?.title ?? "Property Specialist"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
+                  {agent?.bio ??
+                    "Reach out for more information, tours, or neighborhood details."}
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <a
+                    href={`tel:${agent?.phone ?? ""}`}
+                    className="flex-1 rounded-full border border-brand bg-brand px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Call
+                  </a>
+                  <a
+                    href={`mailto:${agent?.email ?? ""}`}
+                    className="flex-1 rounded-full border border-brand bg-brand px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Email
+                  </a>
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-3xl border bg-white dark:bg-slate-900">
+                <div className="border-b bg-gradient-to-r from-brand/10 via-blue-500/5 to-transparent px-4 py-4 dark:from-brand/20 dark:via-blue-500/10 sm:px-6">
+                  <h3 className="text-lg font-semibold sm:text-xl">
+                    Schedule Visit
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                    Pick your preferred date and time. We will confirm shortly.
+                  </p>
+                </div>
+                <div className="p-4 sm:p-6">
+                  {existingVisit && !isEditingVisit ? (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-4 dark:border-emerald-900/50 dark:from-emerald-950/35 dark:to-emerald-900/20">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                          You scheduled a visit on
+                        </p>
+                        <p className="mt-1 text-lg font-semibold text-emerald-800 dark:text-emerald-200">
+                          {format(
+                            new Date(existingVisit.date),
+                            "EEE, MMM d, yyyy",
+                          )}{" "}
+                          at {existingVisit.time}
+                        </p>
+                        <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                          {existingVisit.name} • {existingVisit.phone}
+                        </p>
+                        {existingVisit.message ? (
+                          <p className="mt-2 rounded-xl bg-white/70 p-2.5 text-sm text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+                            {existingVisit.message}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingVisit(true)}
+                          className="rounded-full border border-brand bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                        >
+                          Change Visit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteOpen(true)}
+                          className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 className="h-4 w-4" /> Delete Visit
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-4">
+                        <div className="min-w-0">
+                          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-700 dark:bg-slate-950/50 sm:p-3">
+                            <DayPicker
+                              mode="single"
+                              selected={selectedDate}
+                              onSelect={handleDateSelect}
+                              disabled={{
+                                before: new Date(
+                                  new Date().setHours(0, 0, 0, 0),
+                                ),
+                              }}
+                              className="w-full"
+                            />
+                          </div>
+                          <p className="mt-3 text-sm text-slate-500">
+                            Selected date:{" "}
+                            <span className="font-medium text-slate-700 dark:text-slate-200">
+                              {selectedDate
+                                ? format(selectedDate, "EEE, MMM d, yyyy")
+                                : "None"}
+                            </span>
+                          </p>
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                            Available Times
+                          </p>
+                          <div
+                            className={`grid grid-cols-2 gap-2 rounded-2xl p-1 sm:grid-cols-3 ${
+                              errors.time
+                                ? "border border-red-500/60"
+                                : "border border-transparent"
+                            }`}
+                          >
+                            {TIME_SLOTS.map((time) => {
+                              const disabled = isPastTimeForSelectedDate(time);
+                              return (
+                                <button
+                                  key={time}
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() =>
+                                    setValue("time", time, {
+                                      shouldValidate: true,
+                                      shouldDirty: true,
+                                    })
+                                  }
+                                  className={`rounded-2xl border px-2.5 py-2 text-xs transition sm:px-3 sm:text-sm ${selectedTime === time ? "border-brand bg-brand text-white shadow-sm" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"} ${disabled ? "cursor-not-allowed opacity-45 hover:bg-transparent dark:hover:bg-transparent" : ""}`}
+                                >
+                                  {time}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {errors.time ? (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              {errors.time.message}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <form
+                        onSubmit={handleSubmit(submitVisit)}
+                        className="mt-4 space-y-3"
+                      >
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <input
+                              {...register("name")}
+                              placeholder="Name"
+                              aria-invalid={Boolean(errors.name)}
+                              className={getVisitInputClassName(
+                                Boolean(errors.name),
+                              )}
+                            />
+                            {errors.name ? (
+                              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                                {errors.name.message}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <input
+                              {...register("email")}
+                              placeholder="Email"
+                              aria-invalid={Boolean(errors.email)}
+                              className={getVisitInputClassName(
+                                Boolean(errors.email),
+                              )}
+                            />
+                            {errors.email ? (
+                              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                                {errors.email.message}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div>
+                          <input
+                            {...register("phone", {
+                              setValueAs: (value: string) =>
+                                sanitizePhone(String(value ?? "")),
+                            })}
+                            placeholder="Phone"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={15}
+                            onInput={(event) => {
+                              event.currentTarget.value = sanitizePhone(
+                                event.currentTarget.value,
+                              );
+                            }}
+                            aria-invalid={Boolean(errors.phone)}
+                            className={getVisitInputClassName(
+                              Boolean(errors.phone),
+                            )}
+                          />
+                          {errors.phone ? (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              {errors.phone.message}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div>
+                          <textarea
+                            {...register("message")}
+                            placeholder="Message"
+                            rows={3}
+                            aria-invalid={Boolean(errors.message)}
+                            className={getVisitInputClassName(
+                              Boolean(errors.message),
+                            )}
+                          />
+                          {errors.message ? (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              {errors.message.message}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="submit"
+                          className="w-full rounded-full bg-brand px-4 py-3 font-semibold text-white shadow-[0_8px_18px_rgba(27,79,255,0.28)]"
+                        >
+                          {existingVisit ? "Update Visit" : "Book Visit"}
+                        </button>
+                        {existingVisit ? (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingVisit(false)}
+                            className="w-full rounded-full border px-4 py-3 text-sm font-medium"
+                          >
+                            Cancel
+                          </button>
+                        ) : null}
+                      </form>
+                    </>
+                  )}
+                </div>
+
+                <ConfirmModal
+                  open={confirmDeleteOpen}
+                  title="Cancel Scheduled Visit"
+                  message="Are you sure you want to cancel this scheduled visit?"
+                  confirmText="Cancel Visit"
+                  intent="danger"
+                  onCancel={() => setConfirmDeleteOpen(false)}
+                  onConfirm={() => {
+                    if (!existingVisit) {
+                      setConfirmDeleteOpen(false);
+                      return;
+                    }
+                    removeVisitRequest(existingVisit.id);
+                    toast.success("Scheduled visit deleted");
+                    setIsEditingVisit(false);
+                    const fallback = getEarliestDateTimeFromNow();
+                    setSelectedDate(fallback.date);
+                    setValue("time", fallback.time, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                    setConfirmDeleteOpen(false);
+                  }}
+                />
+              </section>
+
+              <section className="rounded-3xl border bg-white p-4 dark:bg-slate-900 sm:p-6">
+                <h3 className="mb-4 text-lg font-semibold sm:text-xl">
+                  EMI Calculator
+                </h3>
+                <div className="space-y-3">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Interest (% p.a.)
+                      Loan Amount
                     </label>
                     <input
                       type="number"
                       min={0}
-                      step="0.1"
-                      value={emiRate}
+                      value={emiLoanAmount}
                       onChange={(event) =>
-                        setEmiRate(Number(event.target.value) || 0)
+                        setEmiLoanAmount(Number(event.target.value) || 0)
                       }
                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
-                      Tenure (Years)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={emiTenureYears}
-                      onChange={(event) =>
-                        setEmiTenureYears(
-                          Math.max(1, Number(event.target.value) || 1),
-                        )
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                        Interest (% p.a.)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={emiRate}
+                        onChange={(event) =>
+                          setEmiRate(Number(event.target.value) || 0)
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                        Tenure (Years)
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={emiTenureYears}
+                        onChange={(event) =>
+                          setEmiTenureYears(
+                            Math.max(1, Number(event.target.value) || 1),
+                          )
+                        }
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="mt-4 rounded-2xl bg-brand/10 p-4">
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  Estimated Monthly EMI
-                </p>
-                <p className="mt-1 text-3xl font-black text-brand">
-                  {formatINR(Math.round(emiMonthly))}
-                </p>
-              </div>
-            </section>
-          </aside>
+                <div className="mt-4 rounded-2xl bg-brand/10 p-4">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    Estimated Monthly EMI
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-brand sm:text-3xl">
+                    {formatINR(Math.round(emiMonthly))}
+                  </p>
+                </div>
+              </section>
+            </aside>
+          </div>
         </div>
       </div>
     </div>

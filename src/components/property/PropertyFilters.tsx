@@ -37,6 +37,17 @@ interface PropertyFiltersProps {
 
 export default function PropertyFilters({ onClose }: PropertyFiltersProps) {
   const { filters, setFilters, resetFilters, properties } = usePropertyStore();
+  const neighborhoods = Array.from(
+    new Set(
+      properties
+        .filter((property) => !filters.city || property.city === filters.city)
+        .map((property) => property.neighborhood)
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+  const selectedNeighborhood = neighborhoods.includes(filters.query)
+    ? filters.query
+    : "";
   const resultCount = properties.filter((property) => {
     const matchesQuery =
       !filters.query ||
@@ -172,6 +183,24 @@ export default function PropertyFilters({ onClose }: PropertyFiltersProps) {
           {cities.map((city) => (
             <option key={city || "all"} value={city}>
               {city || "All Cities"}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+          Neighborhood
+        </label>
+        <select
+          value={selectedNeighborhood}
+          onChange={(event) => setFilters({ query: event.target.value })}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+        >
+          <option value="">All Neighborhoods</option>
+          {neighborhoods.map((neighborhood) => (
+            <option key={neighborhood} value={neighborhood}>
+              {neighborhood}
             </option>
           ))}
         </select>

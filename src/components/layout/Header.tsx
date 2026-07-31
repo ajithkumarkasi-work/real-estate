@@ -21,7 +21,8 @@ const navLinks = [
 
 export default function Header() {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
   const [query, setQuery] = useState("");
   const [dark, setDark] = useState(
     document.documentElement.classList.contains("dark"),
@@ -49,7 +50,7 @@ export default function Header() {
             <Sparkles className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-white p-[2px] text-[#1B4FFF]" />
           </span>
           <span className="inline-flex items-baseline gap-1.5 text-[17px] font-semibold tracking-[0.04em] text-[#171717] dark:text-white">
-            <span>Estate AI</span>
+            <span>Estate</span>
             <span className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#1B4FFF] dark:text-sky-400">
               Homes
             </span>
@@ -102,23 +103,25 @@ export default function Header() {
             )}
           </button>
 
-          {isAuthenticated ? (
-            <button
-              onClick={() => navigate("/dashboard")}
-              aria-label="Go to profile"
-              className="inline-flex items-center gap-2 rounded-full border border-black/10 px-3 py-2 text-[14px] font-medium tracking-[0.02em] text-[#202020] dark:border-white/15 dark:text-white"
-            >
-              <UserCircle2 className="h-5 w-5" />
-              <span className="hidden lg:inline">{user?.name}</span>
-            </button>
-          ) : (
+          {!isAuthenticated ? (
             <Link
               to="/login"
               className="inline-flex rounded-full bg-[#171717] px-3.5 py-2 text-[14px] font-semibold tracking-[0.03em] text-[#F4E2A0] transition hover:bg-black"
             >
               Login
             </Link>
-          )}
+          ) : null}
+
+          {isAuthenticated ? (
+            <button
+              onClick={() => navigate("/dashboard")}
+              aria-label="Go to profile"
+              className="hidden items-center gap-2 rounded-full border border-black/10 px-3 py-2 text-[14px] font-medium tracking-[0.02em] text-[#202020] dark:border-white/15 dark:text-white lg:inline-flex"
+            >
+              <UserCircle2 className="h-5 w-5" />
+              <span>{user?.name ?? "Profile"}</span>
+            </button>
+          ) : null}
         </div>
       </div>
     </header>
