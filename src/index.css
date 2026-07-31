@@ -1,0 +1,113 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: 221 100% 54%;
+  --accent: 43 100% 50%;
+  --background: 0 0% 100%;
+  --foreground: 222 84% 5%;
+}
+
+.dark {
+  --background: 222 84% 5%;
+  --foreground: 0 0% 98%;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  @apply bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-50;
+}
+
+* {
+  @apply border-slate-200 dark:border-slate-800;
+}
+
+::selection {
+  @apply bg-brand text-white;
+}
+
+/* Global keyboard focus visibility across light/dark themes */
+:where(button, a, input, textarea, select, [role="button"]):focus-visible {
+  @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-white dark:ring-offset-slate-950;
+}
+
+/* Ensure plain clickable buttons are visually identifiable */
+:where(button, [role="button"]):not(.rdp-day_button):not(:disabled):not(
+    [class*="bg-"]
+  ) {
+  @apply bg-white dark:bg-slate-900;
+}
+
+:where(button, [role="button"]):not(.rdp-day_button):not(:disabled):not(
+    [class*="bg-"]
+  ):hover {
+  @apply bg-slate-50 dark:bg-slate-800;
+}
+
+/* DayPicker selected date visibility in light/dark */
+.rdp-day_selected,
+.rdp-day_selected:focus-visible,
+.rdp-day_selected:hover {
+  background-color: #1b4fff !important;
+  color: #ffffff !important;
+}
+
+.rdp-day_selected .rdp-day_button,
+.rdp-day_selected:focus-visible .rdp-day_button,
+.rdp-day_selected:hover .rdp-day_button {
+  color: #ffffff !important;
+}
+
+/* DayPicker dark mode readability */
+.dark .rdp {
+  --rdp-accent-color: #1b4fff;
+  --rdp-accent-background-color: rgba(99, 102, 241, 0.2);
+  --rdp-background-color: #0f172a;
+  --rdp-outline: 2px solid #1b4fff;
+  --rdp-outline-selected: 2px solid #1b4fff;
+}
+
+.dark .rdp-day_button {
+  color: #e2e8f0;
+}
+
+.dark .rdp-caption_label,
+.dark .rdp-weekday,
+.dark .rdp-button_previous,
+.dark .rdp-button_next {
+  color: #cbd5e1;
+}
+
+/* Remove default Leaflet div icon box around custom price markers */
+.leaflet-div-icon.property-price-marker {
+  background: transparent;
+  border: 0;
+}
+
+/* Keep map zoom controls readable in dark mode */
+.leaflet-control-zoom a {
+  color: #0f172a;
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.18);
+}
+
+.leaflet-control-zoom a:hover {
+  background: #f8fafc;
+}
+
+.dark .leaflet-control-zoom a {
+  color: #ffffff;
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.dark .leaflet-control-zoom a:hover {
+  background: #334155;
+}
